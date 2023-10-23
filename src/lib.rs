@@ -105,11 +105,12 @@ mod common {
     pub mod lpi2c;
     pub mod lpspi;
     pub mod lpuart;
+    pub mod sai;
 }
 
 // These common drivers have no associated chip APIs, so
 // export them directly.
-pub use common::{flexpwm, gpt, lpi2c, lpspi, lpuart};
+pub use common::{flexpwm, gpt, lpi2c, lpspi, lpuart, sai};
 
 /// Clock control module.
 ///
