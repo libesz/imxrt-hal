@@ -101,16 +101,62 @@ pub(crate) mod ccm {
     // TODO
     pub(crate) mod clko {
         /// CLKO1 output clock selections.
-        // #[repr(u32)]
+        #[repr(u32)]
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 
-        pub enum Clko1Selection {}
+        pub enum Clko1Selection {
+            // USB1 PLL clock (divided by 2)
+            Usb1PllClk = 0b0000,
+            // SYS PLL clock (divided by 2)
+            SysPllClk = 0b0001,
+            // VIDEO PLL clock (divided by 2)
+            VideoPllClk = 0b0011,
+            // semc_clk_root
+            SemcClk = 0101,
+            // lcdif_pix_clk_root
+            LcdifPixClk = 1010,
+            // ahb_clk_root
+            AhbClk = 1011,
+            // ipg_clk_root
+            IpgClk = 1100,
+            // perclk_root
+            Perclk = 1101,
+            // ckil_sync_clk_root
+            CkilSyncClk = 1110,
+            // pll4_main_clk
+            Pll4Main_Clk = 111,
+        }
 
         /// CLKO2 output clock selections.
-        // #[repr(u32)]
+        #[repr(u32)]
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 
-        pub enum Clko2Selection {}
+        pub enum Clko2Selection {
+            // USB HC root
+            Usdhc1Clk = 0b00011,
+            // LPI2C clock root
+            Lpi2cClk = 0b00100,
+            // CSI clock
+            CsiClk = 0b01001,
+            /// Oscillator clock root.
+            OscClk = 0b01110,
+            // USDHC2 clock root
+            Usdhc2Clk = 0b10001,
+            /// SAI1 clock root.
+            Sai1Clk = 0b10010,
+            /// SAI1 clock root.
+            Sai2Clk = 0b10011,
+            /// SAI3 clock root.
+            Sai3Clk = 0b10100,
+            // CAN clock root
+            CanClk = 0b10111,
+            /// FlexSPI clock root.
+            FlexspiClk = 0b11011,
+            /// UART clock root.
+            UartClk = 0b11100,
+            /// SPDIF0 clock root.
+            Spdif0Clk = 0b11101,
+        }
     }
 
     ccm_flexio!(

@@ -86,7 +86,7 @@ features = ["imxrt-ral/imxrt1062", "imxrt1060"]
 ###############
 
 [features]
-default = ["imxrt-usbd"]
+default = ["imxrt-usbd","imxrt1060"]
 imxrt1010 = ["imxrt-iomuxc/imxrt1010"]
 imxrt1020 = ["imxrt-iomuxc/imxrt1020"]
 imxrt1060 = ["imxrt-iomuxc/imxrt1060"]
@@ -205,3 +205,7 @@ name = "rtic_defmt_rtt"
 [[example]]
 name = "hal_i2c_lcd1602"
 required-features = ["board/lcd1602"]
+
+[[example]]
+name = "rtic_sai_pcm5102"
+required-features = ["board/imxrt-log"]

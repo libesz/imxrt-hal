@@ -14,6 +14,7 @@ use imxrt_ral as ral;
 use imxrt_rt as _;
 
 mod ral_shim;
+// mod teensy4;
 
 /// SOC run mode.
 ///

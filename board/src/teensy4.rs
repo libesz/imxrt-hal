@@ -45,6 +45,17 @@ pub type ConsolePins = hal::lpuart::Pins<
     iomuxc::gpio_ad_b1::GPIO_AD_B1_03, // RX, P15
 >;
 
+pub type Sai1MclkPin = iomuxc::gpio_ad_b1::GPIO_AD_B1_09;
+
+// pub type Sai1TxPins = hal::sai::Pins<iomuxc::, iomuxc::ad, iomuxc::gpio_b1::GPIO_B1_01>;
+
+pub type Sai1RxPins = hal::sai::Pins<
+    iomuxc::gpio_ad_b1::GPIO_AD_B1_10,
+    iomuxc::gpio_ad_b1::GPIO_AD_B1_11,
+    iomuxc::gpio_b1::GPIO_B1_00,
+>;
+
+pub type Sai1 = hal::sai::Sai<1, Sai1MclkPin, (), Sai1RxPins>;
 pub type SpiPins = hal::lpspi::Pins<
     iomuxc::gpio_b0::GPIO_B0_02, // SDO, P11
     iomuxc::gpio_b0::GPIO_B0_01, // SDI, P12
@@ -112,6 +123,7 @@ pub struct Specifics {
     pub console: Console,
     pub spi: Spi,
     pub i2c: I2c,
+    pub sai1: Sai1,
     pub pwm: Pwm,
     pub trng: hal::trng::Trng,
     pub tempmon: hal::tempmon::TempMon,
@@ -145,6 +157,16 @@ impl Specifics {
             console.set_baud(&super::CONSOLE_BAUD);
             console.set_parity(None);
         });
+
+        let sai1 = {
+            let sai1 = unsafe { ral::sai::SAI1::instance() };
+            let pins = Sai1RxPins {
+                sync: iomuxc.gpio_ad_b1.p10,
+                bclk: iomuxc.gpio_ad_b1.p11,
+                data: iomuxc.gpio_b1.p00,
+            };
+            Sai1::from_rx(sai1, iomuxc.gpio_ad_b1.p09, pins)
+        };
 
         #[cfg(feature = "spi")]
         let spi = {
@@ -204,6 +226,7 @@ impl Specifics {
             console,
             spi,
             i2c,
+            sai1,
             pwm,
             trng,
             tempmon,
