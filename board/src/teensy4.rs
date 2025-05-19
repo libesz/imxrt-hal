@@ -35,7 +35,9 @@ pub type Led = ();
 /// The board's "button" on pin 7.
 ///
 /// Connect a normally-open switch from pin 7 to GND.
+#[cfg(not(feature = "sai"))]
 pub type Button = hal::gpio::Input<iomuxc::gpio_b1::GPIO_B1_01>;
+#[cfg(not(feature = "sai"))]
 type ButtonPad = iomuxc::gpio_b1::GPIO_B1_01;
 
 /// The UART console. Baud specified in lib.rs.
@@ -47,7 +49,7 @@ pub type ConsolePins = hal::lpuart::Pins<
 
 pub type Sai1MclkPin = iomuxc::gpio_ad_b1::GPIO_AD_B1_09;
 
-// pub type Sai1TxPins = hal::sai::Pins<iomuxc::, iomuxc::ad, iomuxc::gpio_b1::GPIO_B1_01>;
+pub type Sai1TxPins = hal::sai::Pins<iomuxc::gpio_ad_b1::GPIO_AD_B1_15, iomuxc::gpio_ad_b1::GPIO_AD_B1_14, iomuxc::gpio_b1::GPIO_B1_01>;
 
 pub type Sai1RxPins = hal::sai::Pins<
     iomuxc::gpio_ad_b1::GPIO_AD_B1_10,
@@ -55,7 +57,7 @@ pub type Sai1RxPins = hal::sai::Pins<
     iomuxc::gpio_b1::GPIO_B1_00,
 >;
 
-pub type Sai1 = hal::sai::Sai<1, Sai1MclkPin, (), Sai1RxPins>;
+pub type Sai1 = hal::sai::Sai<1, Sai1MclkPin, Sai1TxPins, Sai1RxPins>;
 pub type SpiPins = hal::lpspi::Pins<
     iomuxc::gpio_b0::GPIO_B0_02, // SDO, P11
     iomuxc::gpio_b0::GPIO_B0_01, // SDI, P12
@@ -73,7 +75,7 @@ pub type Spi = hal::lpspi::Lpspi<SpiPins, 4>;
 
 pub type I2cPins = hal::lpi2c::Pins<
     iomuxc::gpio_ad_b1::GPIO_AD_B1_07, // SCL, P16
-    iomuxc::gpio_ad_b1::GPIO_AD_B1_06, // SDA, P17
+    iomuxc::gpio_ad_b1::GPIO_AD_B1_06, // SDA, 
 >;
 
 pub type I2c = hal::lpi2c::Lpi2c<I2cPins, 3>;
@@ -105,11 +107,13 @@ pub struct Pwm {
 ///
 /// Exposes methods to configure your board's GPIOs.
 pub struct GpioPorts {
+#[cfg(not(feature = "sai"))]
     gpio2: hal::gpio::Port<2>,
 }
 
 impl GpioPorts {
     /// Returns the GPIO port for the button.
+#[cfg(not(feature = "sai"))]
     pub fn button_mut(&mut self) -> &mut hal::gpio::Port<2> {
         &mut self.gpio2
     }
@@ -118,11 +122,14 @@ impl GpioPorts {
 /// Teensy 4 specific peripherals.
 pub struct Specifics {
     pub led: Led,
+    #[cfg(not(feature = "sai"))]
     pub button: Button,
+    #[cfg(not(feature = "sai"))]
     pub ports: GpioPorts,
     pub console: Console,
     pub spi: Spi,
     pub i2c: I2c,
+#[cfg(feature = "sai")]
     pub sai1: Sai1,
     pub pwm: Pwm,
     pub trng: hal::trng::Trng,
@@ -143,6 +150,7 @@ impl Specifics {
         #[cfg(feature = "spi")]
         let led = ();
 
+        #[cfg(not(feature = "sai"))]
         let button = gpio2.input(iomuxc.gpio_b1.p01);
 
         let lpuart2 = unsafe { ral::lpuart::LPUART2::instance() };
@@ -158,14 +166,26 @@ impl Specifics {
             console.set_parity(None);
         });
 
+        #[cfg(feature = "sai")]
         let sai1 = {
             let sai1 = unsafe { ral::sai::SAI1::instance() };
-            let pins = Sai1RxPins {
+            let rxpins = Sai1RxPins {
                 sync: iomuxc.gpio_ad_b1.p10,
                 bclk: iomuxc.gpio_ad_b1.p11,
                 data: iomuxc.gpio_b1.p00,
             };
-            Sai1::from_rx(sai1, iomuxc.gpio_ad_b1.p09, pins)
+
+            let txpins = Sai1TxPins {
+                sync: iomuxc.gpio_ad_b1.p15,
+                bclk: iomuxc.gpio_ad_b1.p14,
+                data: iomuxc.gpio_b1.p01,
+            };
+            Sai1::new(sai1,
+                iomuxc.gpio_ad_b1.p09,
+                txpins,
+                rxpins,
+            )
+            //Sai1::from_rx(sai1, iomuxc.gpio_ad_b1.p09, pins)
         };
 
         #[cfg(feature = "spi")]
@@ -221,11 +241,14 @@ impl Specifics {
         );
         Self {
             led,
+            #[cfg(not(feature = "sai"))]
             button,
+            #[cfg(not(feature = "sai"))]
             ports: GpioPorts { gpio2 },
             console,
             spi,
             i2c,
+            #[cfg(feature = "sai")]
             sai1,
             pwm,
             trng,
@@ -273,7 +296,9 @@ fn configure_pins(
         .set_pull_keeper(Some(iomuxc::PullKeeper::Pullup100k))
         .set_hysteresis(iomuxc::Hysteresis::Enabled);
 
+    #[cfg(not(feature = "sai"))]
     let button: &mut ButtonPad = &mut gpio_b1.p01;
+    #[cfg(not(feature = "sai"))]
     iomuxc::configure(button, BUTTON_CONFIG);
 
     const SPI_PIN_CONFIG: iomuxc::Config = iomuxc::Config::zero()

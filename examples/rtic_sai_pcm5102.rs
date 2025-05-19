@@ -112,7 +112,7 @@ mod app {
     #[shared]
     struct Shared {
         /// Serial audio interface
-        //sai1_tx: SaiTx,
+        sai1_tx: SaiTx,
         poller: board::logging::Poller,
     }
 
@@ -158,44 +158,45 @@ mod app {
         let dma_a = dma[board::BOARD_DMA_A_INDEX].take().unwrap();
         let poller = board::logging::init(FRONTEND, BACKEND, console, dma_a, usbd);
 
-        let (Some(sai1_tx), None) = sai1.split(&hal::sai::SaiConfig::i2s(hal::sai::bclk_div(8)))
+        let miez = hal::sai::SaiConfig::i2s(hal::sai::bclk_div(64));
+        let (Some(sai1_tx), Some(sai1_rx)) = sai1.split(&miez)
         else {
             panic!("Unexpected return from sai split");
         };
 
         let mut sai1_tx: SaiTx = sai1_tx;
 
-        // let regs = sai1_tx.reg_dump();
-        // defmt::println!(
-        //     "Regdump of config: TCR1: {:b}, TCR2 {:b}, TCR3 {:b}, TCR4 {:b}, TCR5 {:b}",
-        //     regs[0],
-        //     regs[1],
-        //     regs[2],
-        //     regs[3],
-        //     regs[4]
-        // );
+        let regs = sai1_tx.reg_dump();
+        defmt::println!(
+            "Regdump of config: TCR1: {:b}, TCR2 {:b}, TCR3 {:b}, TCR4 {:b}, TCR5 {:b}",
+            regs[0],
+            regs[1],
+            regs[2],
+            regs[3],
+            regs[4]
+        );
 
-        // cortex_m.DCB.enable_trace();
-        // cortex_m::peripheral::DWT::unlock();
-        // cortex_m.DWT.enable_cycle_counter();
+        cortex_m.DCB.enable_trace();
+        cortex_m::peripheral::DWT::unlock();
+        cortex_m.DWT.enable_cycle_counter();
 
-        // audio_pit.set_load_timer_value(AUDIO_POLL_MS);
-        // audio_pit.set_interrupt_enable(true);
-        // audio_pit.enable();
+        audio_pit.set_load_timer_value(AUDIO_POLL_MS);
+        audio_pit.set_interrupt_enable(true);
+        audio_pit.enable();
 
         let mut counter: u32 = 0;
-        // for _i in 0..31 {
-        //     sai1_tx.write_frame(0, [sine(counter), square(counter)]);
-        //     counter += 1;
-        // }
-        // sai1_tx.set_interrupts(
-        //     hal::sai::Interrupts::FIFO_WARNING | hal::sai::Interrupts::FIFO_REQUEST,
-        // );
-        // sai1_tx.set_enable(true);
+        for _i in 0..31 {
+            sai1_tx.write_frame(0, [sine(counter), square(counter)]);
+            counter += 1;
+        }
+        sai1_tx.set_interrupts(
+            hal::sai::Interrupts::FIFO_WARNING | hal::sai::Interrupts::FIFO_REQUEST,
+        );
+        sai1_tx.set_enable(true);
 
         (
             Shared {
-                /*sai1_tx,*/ poller,
+                sai1_tx, poller,
             },
             Local {
                 led: led,
@@ -207,17 +208,17 @@ mod app {
         )
     }
 
-    // #[task(binds = BOARD_SAI1, shared = [sai1_tx], local = [counter], priority = 2)]
-    // fn sai1_interrupt(mut cx: sai1_interrupt::Context) {
-    //     let sai1_interrupt::LocalResources { counter, .. } = cx.local;
+    #[task(binds = BOARD_SAI1, shared = [sai1_tx], local = [counter], priority = 2)]
+    fn sai1_interrupt(mut cx: sai1_interrupt::Context) {
+        let sai1_interrupt::LocalResources { counter, .. } = cx.local;
 
-    //     cx.shared.sai1_tx.lock(|sai1_tx| {
-    //         while sai1_tx.status().contains(hal::sai::Status::FIFO_REQUEST) {
-    //             sai1_tx.write_frame(0, [sine(*counter), square(*counter)]);
-    //             *counter = (*counter).wrapping_add(1);
-    //         }
-    //     });
-    // }
+        cx.shared.sai1_tx.lock(|sai1_tx| {
+            while sai1_tx.status().contains(hal::sai::Status::FIFO_REQUEST) {
+                sai1_tx.write_frame(0, [sine(*counter), square(*counter)]);
+                *counter = (*counter).wrapping_add(1);
+            }
+        });
+    }
 
     /// This interrupt fires
     ///
@@ -248,7 +249,7 @@ mod app {
         cx.shared.poller.lock(|poller| poller.poll());
     }
 
-    #[task(binds = BOARD_PIT, shared = [/*sai1_tx*/], local = [audio_pit, led, poll_log, make_log, log_counter: u32 = 0], priority = 1)]
+    #[task(binds = BOARD_PIT, shared = [sai1_tx], local = [audio_pit, led, poll_log, make_log, log_counter: u32 = 0], priority = 1)]
     fn pit_interrupt(mut cx: pit_interrupt::Context) {
         let pit_interrupt::LocalResources {
             audio_pit,
@@ -260,23 +261,23 @@ mod app {
         } = cx.local;
 
         //led.toggle();
-        // while audio_pit.is_elapsed() {
-        //     audio_pit.clear_elapsed();
-        // }
+        while audio_pit.is_elapsed() {
+            audio_pit.clear_elapsed();
+        }
 
-        // let (status, write_pos, read_pos) = cx.shared.sai1_tx.lock(|sai1_tx| {
-        //     let status = sai1_tx.status();
-        //     let (write_pos, read_pos) = sai1_tx.fifo_position(0);
-        //     (status, write_pos, read_pos)
-        // });
+        let (status, write_pos, read_pos) = cx.shared.sai1_tx.lock(|sai1_tx| {
+            let status = sai1_tx.status();
+            let (write_pos, read_pos) = sai1_tx.fifo_position(0);
+            (status, write_pos, read_pos)
+        });
 
-        // defmt::println!(
-        //     "Audio synthesis tx status {:#x}, fifo underrun? {}, write pos {}, read pos {}",
-        //     status.bits(),
-        //     status.contains(hal::sai::Status::FIFO_ERROR),
-        //     write_pos,
-        //     read_pos,
-        // );
+        log::info!(
+            "Audio synthesis tx status {:#x}, fifo underrun? {}, write pos {}, read pos {}",
+            status.bits(),
+            status.contains(hal::sai::Status::FIFO_ERROR),
+            write_pos,
+            read_pos,
+        );
 
         // Is it time for us to poll the logger?
         // This only happens for the LPUART backend.
@@ -287,36 +288,36 @@ mod app {
             poll_logger::spawn().unwrap();
         }
 
-        // Is it time for us to send a new log message?
-        if make_log.is_elapsed() {
-            led.toggle();
-            while make_log.is_elapsed() {
-                make_log.clear_elapsed();
-            }
+        // // Is it time for us to send a new log message?
+        // if make_log.is_elapsed() {
+        //     led.toggle();
+        //     while make_log.is_elapsed() {
+        //         make_log.clear_elapsed();
+        //     }
 
-            let count = cycles(|| {
-                log::info!(
-                    "Hello from the log framework over {BACKEND:?}! The count is {log_counter}"
-                )
-            });
-            log::info!(
-                "That last message took {count} cycles to be copied into the logging buffer"
-            );
+        //     let count = cycles(|| {
+        //         log::info!(
+        //             "Hello from the log framework over {BACKEND:?}! The count is {log_counter}"
+        //         )
+        //     });
+        //     log::info!(
+        //         "That last message took {count} cycles to be copied into the logging buffer"
+        //     );
 
-            let count = cycles(|| {
-                defmt::println!(
-                    "Hello from defmt over {}! The count is {=u32}",
-                    BACKEND,
-                    log_counter
-                )
-            });
-            defmt::println!(
-                "That last message took {=u32} cycles to be copied into the logging buffer",
-                count
-            );
+        //     let count = cycles(|| {
+        //         defmt::println!(
+        //             "Hello from defmt over {}! The count is {=u32}",
+        //             BACKEND,
+        //             log_counter
+        //         )
+        //     });
+        //     defmt::println!(
+        //         "That last message took {=u32} cycles to be copied into the logging buffer",
+        //         count
+        //     );
 
-            *log_counter += 1;
-        }
+        //     *log_counter += 1;
+        // }
     }
 
     /// Count the clock cycles required to execute `f`

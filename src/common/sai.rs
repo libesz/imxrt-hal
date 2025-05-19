@@ -304,6 +304,46 @@ pub struct Sai<const N: u8, MclkPin, TxPins, RxPins> {
     rx_chan_mask: u32,
 }
 
+impl<const N: u8, Chan, Mclk, TxSync, TxBclk, TxData, RxSync, RxBclk, RxData> Sai<N, Mclk, Pins<TxSync, TxBclk, TxData>, Pins<RxSync, RxBclk, RxData>>
+where
+    Mclk: sai::Pin<consts::Const<N>, Signal = sai::Mclk>,
+    TxSync: sai::Pin<consts::Const<N>, Signal = sai::TxSync>,
+    TxBclk: sai::Pin<consts::Const<N>, Signal = sai::TxBclk>,
+    TxData: sai::Pin<consts::Const<N>>,
+    RxSync: sai::Pin<consts::Const<N>, Signal = sai::RxSync>,
+    RxBclk: sai::Pin<consts::Const<N>, Signal = sai::RxBclk>,
+    RxData: sai::Pin<consts::Const<N>>,
+    Chan: consts::Unsigned,
+    <TxData as sai::Pin<consts::Const<N>>>::Signal: sai::TxDataSignal<Index = Chan>,
+    <RxData as sai::Pin<consts::Const<N>>>::Signal: sai::RxDataSignal<Index = Chan>,
+{
+    pub fn new(
+        sai: ral::sai::Instance<N>,
+        mut mclk_pin: Mclk,
+        mut tx_pins: Pins<TxSync, TxBclk, TxData>,
+        mut rx_pins: Pins<RxSync, RxBclk, RxData>,
+        ) -> Self{
+        reset(&sai);
+
+        sai::prepare(&mut mclk_pin);
+        sai::prepare(&mut tx_pins.sync);
+        sai::prepare(&mut tx_pins.bclk);
+        sai::prepare(&mut tx_pins.data);
+        sai::prepare(&mut rx_pins.sync);
+        sai::prepare(&mut rx_pins.bclk);
+        sai::prepare(&mut rx_pins.data);
+
+        Self{
+            sai,
+            _mclk_pin: mclk_pin,
+            tx_pins: Some(tx_pins),
+            rx_pins: Some(rx_pins), 
+            tx_chan_mask: 1 << Chan::to_usize(),
+            rx_chan_mask: 1 << Chan::to_usize(),
+        }
+    }
+}
+
 /// A SAI transmit half
 pub struct Tx<
     const N: u8,
