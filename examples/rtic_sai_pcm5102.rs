@@ -10,7 +10,7 @@
 
 /// Half of a sine wave (0 to pi)
 /// Can be used to generate a full sine wave by inverting (-1 * SIN_LUT[X]);
-const SIN_LUT: [u16; 256] = [
+const SIN_LUT: [u32; 256] = [
     0, 402, 804, 1206, 1608, 2009, 2411, 2811, 3212, 3612, 4011, 4410, 4808, 5205, 5602, 5998,
     6393, 6787, 7180, 7571, 7962, 8351, 8740, 9127, 9512, 9896, 10279, 10660, 11039, 11417, 11793,
     12167, 12540, 12910, 13279, 13646, 14010, 14373, 14733, 15091, 15447, 15800, 16151, 16500,
@@ -33,20 +33,20 @@ const SIN_LUT: [u16; 256] = [
 ];
 
 /// Generate a sine wave sample
-fn sine(t: u32) -> u16 {
+fn sine(t: u32) -> u32 {
     let p = t % 512;
     let s = SIN_LUT[(p % 256) as usize];
     if p < 256 {
-        (32768 + s) / 2
+        ((32768 + s) / 2) << 16
     } else {
-        (32768 - s) / 2
+        ((32768 - s) / 2) << 16
     }
 }
 
 /// Generate a square wave sample
-fn square(t: u32) -> u16 {
+fn square(t: u32) -> u32 {
     if (t % 128) > 64 {
-        32767
+        32767 << 16
     } else {
         0
     }
@@ -83,8 +83,9 @@ mod app {
 
     use crate::{sine, square};
     use imxrt_hal as hal;
+    use imxrt_ral as ral;
 
-    type SaiTx = hal::sai::Tx<1, 16, 2, hal::sai::PackingNone>;
+    type SaiTx = hal::sai::Tx<1, 32, 2, hal::sai::PackingNone>;
 
     //
     // End configurations.
@@ -158,9 +159,8 @@ mod app {
         let dma_a = dma[board::BOARD_DMA_A_INDEX].take().unwrap();
         let poller = board::logging::init(FRONTEND, BACKEND, console, dma_a, usbd);
 
-        let miez = hal::sai::SaiConfig::i2s(hal::sai::bclk_div(64));
-        let (Some(sai1_tx), Some(sai1_rx)) = sai1.split(&miez)
-        else {
+        let miez = hal::sai::SaiConfig::i2s(hal::sai::bclk_div(4));
+        let (Some(sai1_tx), Some(sai1_rx)) = sai1.split(&miez) else {
             panic!("Unexpected return from sai split");
         };
 
@@ -168,12 +168,13 @@ mod app {
 
         let regs = sai1_tx.reg_dump();
         defmt::println!(
-            "Regdump of config: TCR1: {:b}, TCR2 {:b}, TCR3 {:b}, TCR4 {:b}, TCR5 {:b}",
+            "Regdump of config: TCR1: {:b}, TCR2 {:b}, TCR3 {:b}, TCR4 {:b}, TCR5 {:b}, TCSR: {:b}",
             regs[0],
             regs[1],
             regs[2],
             regs[3],
-            regs[4]
+            regs[4],
+            regs[5]
         );
 
         cortex_m.DCB.enable_trace();
@@ -189,15 +190,14 @@ mod app {
             sai1_tx.write_frame(0, [sine(counter), square(counter)]);
             counter += 1;
         }
+        sai1_tx.set_enable(true);
         sai1_tx.set_interrupts(
             hal::sai::Interrupts::FIFO_WARNING | hal::sai::Interrupts::FIFO_REQUEST,
         );
         sai1_tx.set_enable(true);
 
         (
-            Shared {
-                sai1_tx, poller,
-            },
+            Shared { sai1_tx, poller },
             Local {
                 led: led,
                 poll_log,
@@ -265,11 +265,36 @@ mod app {
             audio_pit.clear_elapsed();
         }
 
-        let (status, write_pos, read_pos) = cx.shared.sai1_tx.lock(|sai1_tx| {
+        let (status, write_pos, read_pos, regs) = cx.shared.sai1_tx.lock(|sai1_tx| {
+            sai1_tx.set_enable(true);
             let status = sai1_tx.status();
+            let regs = sai1_tx.reg_dump();
             let (write_pos, read_pos) = sai1_tx.fifo_position(0);
-            (status, write_pos, read_pos)
+            (status, write_pos, read_pos, regs)
         });
+
+        log::info!(
+            "Regdump of config: TCR1: {:b}, TCR2 {:b}, TCR3 {:b}, TCR4 {:b}, TCR5 {:b}, TCSR: {:b}",
+            regs[0],
+            regs[1],
+            regs[2],
+            regs[3],
+            regs[4],
+            regs[5]
+        );
+
+        unsafe {
+            let mut ccm = ral::ccm::CCM::instance();
+            let mut ccm_analog = ral::ccm_analog::CCM_ANALOG::instance();
+            ral::read_reg!(ral::ccm_analog, ccm_analog, CCM_CSCMR1);
+            hal::ccm::analog::pll4::reconfigure(
+                &mut ccm_analog,
+                30,
+                72,
+                100,
+                hal::ccm::analog::pll4::PostDivider::U1,
+            );
+        }
 
         log::info!(
             "Audio synthesis tx status {:#x}, fifo underrun? {}, write pos {}, read pos {}",

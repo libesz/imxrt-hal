@@ -273,7 +273,7 @@ impl SaiConfig {
         // are rounded up as the bclk divider is *always* an even number from 2 to 512
         Self {
             mclk_source: MclkSource::Sysclk,
-            tx_fifo_wm: 16,
+            tx_fifo_wm: 1,
             tx_stop_en: false,
             tx_debug_en: false,
             tx_bclk_div: bclk_div,
@@ -400,13 +400,14 @@ impl<const N: u8, const WORD_SIZE: u8, const FRAME_SIZE: usize, PACKING: Packing
     }
 
     /// Get a dump of the Tx configuration registers
-    pub fn reg_dump(&mut self) -> [u32; 5] {
+    pub fn reg_dump(&mut self) -> [u32; 6] {
         [
             ral::read_reg!(ral::sai, self.sai, TCR1),
             ral::read_reg!(ral::sai, self.sai, TCR2),
             ral::read_reg!(ral::sai, self.sai, TCR3),
             ral::read_reg!(ral::sai, self.sai, TCR4),
             ral::read_reg!(ral::sai, self.sai, TCR5),
+            ral::read_reg!(ral::sai, self.sai, TCSR),
         ]
     }
 
