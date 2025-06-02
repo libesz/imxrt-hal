@@ -304,6 +304,48 @@ pub struct Sai<const N: u8, MclkPin, TxPins, RxPins> {
     rx_chan_mask: u32,
 }
 
+impl<const N: u8, Chan, Mclk, TxSync, TxBclk, TxData, RxSync, RxBclk, RxData>
+    Sai<N, Mclk, Pins<TxSync, TxBclk, TxData>, Pins<RxSync, RxBclk, RxData>>
+where
+    Mclk: sai::Pin<consts::Const<N>, Signal = sai::Mclk>,
+    TxSync: sai::Pin<consts::Const<N>, Signal = sai::TxSync>,
+    TxBclk: sai::Pin<consts::Const<N>, Signal = sai::TxBclk>,
+    TxData: sai::Pin<consts::Const<N>>,
+    RxSync: sai::Pin<consts::Const<N>, Signal = sai::RxSync>,
+    RxBclk: sai::Pin<consts::Const<N>, Signal = sai::RxBclk>,
+    RxData: sai::Pin<consts::Const<N>>,
+    Chan: consts::Unsigned,
+    <TxData as sai::Pin<consts::Const<N>>>::Signal: sai::TxDataSignal<Index = Chan>,
+    <RxData as sai::Pin<consts::Const<N>>>::Signal: sai::RxDataSignal<Index = Chan>,
+{
+    /// Creates SAI instance with single channel RX and TX.
+    pub fn new(
+        sai: ral::sai::Instance<N>,
+        mut mclk_pin: Mclk,
+        mut tx_pins: Pins<TxSync, TxBclk, TxData>,
+        mut rx_pins: Pins<RxSync, RxBclk, RxData>,
+    ) -> Self {
+        reset(&sai);
+
+        sai::prepare(&mut mclk_pin);
+        sai::prepare(&mut tx_pins.sync);
+        sai::prepare(&mut tx_pins.bclk);
+        sai::prepare(&mut tx_pins.data);
+        sai::prepare(&mut rx_pins.sync);
+        sai::prepare(&mut rx_pins.bclk);
+        sai::prepare(&mut rx_pins.data);
+
+        Self {
+            sai,
+            _mclk_pin: mclk_pin,
+            tx_pins: Some(tx_pins),
+            rx_pins: Some(rx_pins),
+            tx_chan_mask: 1 << Chan::to_usize(),
+            rx_chan_mask: 1 << Chan::to_usize(),
+        }
+    }
+}
+
 /// A SAI transmit half
 pub struct Tx<
     const N: u8,
@@ -360,13 +402,14 @@ impl<const N: u8, const WORD_SIZE: u8, const FRAME_SIZE: usize, PACKING: Packing
     }
 
     /// Get a dump of the Tx configuration registers
-    pub fn reg_dump(&mut self) -> [u32; 5] {
+    pub fn reg_dump(&mut self) -> [u32; 6] {
         [
             ral::read_reg!(ral::sai, self.sai, TCR1),
             ral::read_reg!(ral::sai, self.sai, TCR2),
             ral::read_reg!(ral::sai, self.sai, TCR3),
             ral::read_reg!(ral::sai, self.sai, TCR4),
             ral::read_reg!(ral::sai, self.sai, TCR5),
+            ral::read_reg!(ral::sai, self.sai, TCSR),
         ]
     }
 
@@ -519,17 +562,22 @@ impl<const N: u8, Mclk, TxPins, RxPins> Sai<N, Mclk, TxPins, RxPins> {
         Option<Tx<N, WORD_SIZE, FRAME_SIZE, PACKING>>,
         Option<Rx<N, WORD_SIZE, FRAME_SIZE, PACKING>>,
     ) {
-        // Set the mclk pin to be an output
+        // Safety: set the mclk pin to be an output
         unsafe {
+            #[cfg(chip = "imxrt1170")]
+            ral::write_reg!(ral::iomuxc_gpr, ral::iomuxc_gpr::IOMUXC_GPR::instance(), GPR0, SAI1_MCLK_DIR: 1);
+            #[cfg(not(chip = "imxrt1170"))]
             ral::write_reg!(ral::iomuxc_gpr, ral::iomuxc_gpr::IOMUXC_GPR::instance(), GPR1, SAI1_MCLK_DIR: 1);
         }
 
         let tx = self.tx_pins.map(|_| Tx {
+            // Safety: create instance
             sai: unsafe { ral::sai::Instance::<N>::new(&*self.sai) },
             _packing: PhantomData::<PACKING>,
         });
 
         let rx = self.rx_pins.map(|_| Rx {
+            // Safety: create instance
             _sai: unsafe { ral::sai::Instance::<N>::new(&*self.sai) },
             _packing: PhantomData::<PACKING>,
         });

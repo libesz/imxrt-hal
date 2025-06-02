@@ -146,5 +146,6 @@ logging-defmt = ["imxrt-log/defmt"]
 #
 # See board-specific documentation for its effects.
 spi = []
+sai = []
 
 lcd1602 = ["dep:lcd_1602_i2c"]
