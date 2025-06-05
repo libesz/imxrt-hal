@@ -6,11 +6,11 @@ jobs:
   format:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - name: Install a stable toolchain with rustfmt
-      run: rustup toolchain install stable --no-self-update --profile minimal --component rustfmt
-    - name: Check formatting
-      run: cargo fmt --all -- --check
+      - uses: actions/checkout@v4
+      - name: Install a stable toolchain with rustfmt
+        run: rustup toolchain install stable --no-self-update --profile minimal --component rustfmt
+      - name: Check formatting
+        run: cargo fmt --all -- --check
 
   # Checks the common HAL for all chips supported by imxrt-ral.
   lint-hal:
@@ -18,32 +18,32 @@ jobs:
     strategy:
       matrix:
         chips:
-        - imxrt-ral/imxrt1011
-        - imxrt-ral/imxrt1015
-        - imxrt-ral/imxrt1021
-        - imxrt-ral/imxrt1051
-        - imxrt-ral/imxrt1052
-        - imxrt-ral/imxrt1061
-        - imxrt-ral/imxrt1062
-        - imxrt-ral/imxrt1064
-        - imxrt-ral/imxrt1176_cm4
-        - imxrt-ral/imxrt1176_cm7
-        - imxrt-ral/imxrt1189_cm7
-        - imxrt-ral/imxrt1189_cm33
-        # We can't lint the 1180 through lint-log. The logging package
-        # requires DMA-capable LPUART, and there's no DMA support for
-        # the 1180.
-        - imxrt-ral/imxrt1189_cm33,imxrt1180
-        - imxrt-ral/imxrt1189_cm7,imxrt1180
+          - imxrt-ral/imxrt1011
+          - imxrt-ral/imxrt1015
+          - imxrt-ral/imxrt1021
+          - imxrt-ral/imxrt1051
+          - imxrt-ral/imxrt1052
+          - imxrt-ral/imxrt1061
+          - imxrt-ral/imxrt1062
+          - imxrt-ral/imxrt1064
+          - imxrt-ral/imxrt1176_cm4
+          - imxrt-ral/imxrt1176_cm7
+          - imxrt-ral/imxrt1189_cm7
+          - imxrt-ral/imxrt1189_cm33
+          # We can't lint the 1180 through lint-log. The logging package
+          # requires DMA-capable LPUART, and there's no DMA support for
+          # the 1180.
+          - imxrt-ral/imxrt1189_cm33,imxrt1180
+          - imxrt-ral/imxrt1189_cm7,imxrt1180
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - name: Install a stable toolchain with clippy
-      run: rustup toolchain install stable --no-self-update --profile minimal --component clippy
-    - name: Lint imxrt-hal
-      run: cargo clippy --features=${{ matrix.chips }} --package=imxrt-hal -- -D warnings
-    - name: Lint imxrt-hal with defmt
-      run: cargo clippy --features=${{ matrix.chips }} --features=defmt --package=imxrt-hal -- -D warnings
+      - uses: actions/checkout@v4
+      - name: Install a stable toolchain with clippy
+        run: rustup toolchain install stable --no-self-update --profile minimal --component clippy
+      - name: Lint imxrt-hal
+        run: cargo clippy --features=${{ matrix.chips }} --package=imxrt-hal -- -D warnings
+      - name: Lint imxrt-hal with defmt
+        run: cargo clippy --features=${{ matrix.chips }} --features=defmt --package=imxrt-hal -- -D warnings
 
   # Indirectly checks & lints the HAL with the HAL's chip feature, and also
   # checks & lints the imxrt-log package.
@@ -52,69 +52,71 @@ jobs:
     strategy:
       matrix:
         chips:
-        - imxrt-ral/imxrt1011,imxrt1010
-        - imxrt-ral/imxrt1021,imxrt1020
-        - imxrt-ral/imxrt1061,imxrt1060
-        - imxrt-ral/imxrt1062,imxrt1060
-        - imxrt-ral/imxrt1064,imxrt1060
-        - imxrt-ral/imxrt1176_cm4,imxrt1170
-        - imxrt-ral/imxrt1176_cm7,imxrt1170
+          - imxrt-ral/imxrt1011,imxrt1010
+          - imxrt-ral/imxrt1021,imxrt1020
+          - imxrt-ral/imxrt1061,imxrt1060
+          - imxrt-ral/imxrt1062,imxrt1060
+          - imxrt-ral/imxrt1064,imxrt1060
+          - imxrt-ral/imxrt1176_cm4,imxrt1170
+          - imxrt-ral/imxrt1176_cm7,imxrt1170
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - name: Install a stable toolchain with clippy
-      run: rustup toolchain install stable --no-self-update --profile minimal --component clippy
-    - name: Lint imxrt-log
-      run: cargo clippy --features=${{ matrix.chips }} --features=defmt --package=imxrt-log --package=imxrt-hal -- -D warnings
-  
+      - uses: actions/checkout@v4
+      - name: Install a stable toolchain with clippy
+        run: rustup toolchain install stable --no-self-update --profile minimal --component clippy
+      - name: Lint imxrt-log
+        run: cargo clippy --features=${{ matrix.chips }} --features=defmt --package=imxrt-log --package=imxrt-hal -- -D warnings
+
   # Lint and build examples for boards.
   examples:
     needs: lint-hal
     strategy:
       matrix:
         config:
-        # Boards that support all examples, and should build with additional drivers.
-        - --examples --features=board/teensy4,board/lcd1602
-        - --examples --features=board/imxrt1010evk,board/lcd1602
-        - --examples --features=board/imxrt1060evk,board/lcd1602
-        # SPI examples (might break other examples)
-        - --example=rtic_spi_blocking --example=rtic_spi_controller --example=rtic_spi_peripheral --example=rtic_spi --example=async_dma_spi --features=board/teensy4,board/spi
-        - --example=rtic_spi_blocking --example=rtic_spi_controller --example=rtic_spi_peripheral --example=rtic_spi --example=async_dma_spi --features=board/imxrt1010evk,board/spi
-        - --example=rtic_spi_blocking --example=rtic_spi_controller --example=rtic_spi_peripheral --example=rtic_spi --example=async_dma_spi --features=board/imxrt1060evk,board/spi
-        - --example=rtic_spi_blocking --example=rtic_spi_controller --example=rtic_spi_peripheral --example=rtic_spi --example=async_dma_spi --features=board/imxrt1170evk-cm7,board/spi
-        # The i.MX RT 1170 EVK (CM7) target is WIP. The list below describes the working examples.
-        - --features=board/imxrt1170evk-cm7,board/lcd1602 --example=hal_led
-          --example=hal_gpio_input --example=rtic_gpio_input
-          --example=hal_uart --example=rtic_uart --example=rtic_dma_uart --example=async_dma_uart
-          --example=hal_gpt --example=rtic_gpt
-          --example=hal_pit --example=rtic_pit
-          --example=hal_logging --example=rtic_logging
-          --example=hal_clock_out
-          --example=hal_pwm --example=rtic_pwm
-          --example=hal_i2c_mpu9250 --example=hal_i2c_lcd1602
-          --example=rtic_usb_serial --example=rtic_usb_test_class --example=rtic_usb_keypress --example=rtic_usb_mouse
+          # Boards that support all examples, and should build with additional drivers.
+          - --examples --features=board/teensy4,board/lcd1602
+          - --examples --features=board/imxrt1010evk,board/lcd1602
+          - --examples --features=board/imxrt1060evk,board/lcd1602
+          # SPI examples (might break other examples)
+          - --example=rtic_spi_blocking --example=rtic_spi_controller --example=rtic_spi_peripheral --example=rtic_spi --example=async_dma_spi --features=board/teensy4,board/spi
+          - --example=rtic_spi_blocking --example=rtic_spi_controller --example=rtic_spi_peripheral --example=rtic_spi --example=async_dma_spi --features=board/imxrt1010evk,board/spi
+          - --example=rtic_spi_blocking --example=rtic_spi_controller --example=rtic_spi_peripheral --example=rtic_spi --example=async_dma_spi --features=board/imxrt1060evk,board/spi
+          - --example=rtic_spi_blocking --example=rtic_spi_controller --example=rtic_spi_peripheral --example=rtic_spi --example=async_dma_spi --features=board/imxrt1170evk-cm7,board/spi
+          # SAU examples (might break other examples)
+          - --example=rtic_sai_pcm5102 --features=board/teensy4,board/sai
+          # The i.MX RT 1170 EVK (CM7) target is WIP. The list below describes the working examples.
+          - --features=board/imxrt1170evk-cm7,board/lcd1602 --example=hal_led
+            --example=hal_gpio_input --example=rtic_gpio_input
+            --example=hal_uart --example=rtic_uart --example=rtic_dma_uart --example=async_dma_uart
+            --example=hal_gpt --example=rtic_gpt
+            --example=hal_pit --example=rtic_pit
+            --example=hal_logging --example=rtic_logging
+            --example=hal_clock_out
+            --example=hal_pwm --example=rtic_pwm
+            --example=hal_i2c_mpu9250 --example=hal_i2c_lcd1602
+            --example=rtic_usb_serial --example=rtic_usb_test_class --example=rtic_usb_keypress --example=rtic_usb_mouse
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - name: Install a stable toolchain, clippy, for the MCU target
-      run: rustup toolchain install stable --no-self-update --profile minimal --component clippy --target thumbv7em-none-eabihf
-    - name: Lint board and examples
-      run: cargo clippy ${{ matrix.config }} --target=thumbv7em-none-eabihf -- -D warnings
-    - name: Build examples
-      run: cargo build ${{ matrix.config }} --target=thumbv7em-none-eabihf --release
+      - uses: actions/checkout@v4
+      - name: Install a stable toolchain, clippy, for the MCU target
+        run: rustup toolchain install stable --no-self-update --profile minimal --component clippy --target thumbv7em-none-eabihf
+      - name: Lint board and examples
+        run: cargo clippy ${{ matrix.config }} --target=thumbv7em-none-eabihf -- -D warnings
+      - name: Build examples
+        run: cargo build ${{ matrix.config }} --target=thumbv7em-none-eabihf --release
 
   # For now, we let the 1180EVK examples build with warnings. It's very WIP.
   examples-1180-evk:
     needs: lint-hal
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - name: Install a stable toolchain for the MCU target
-      run: rustup toolchain install stable --no-self-update --profile minimal --target thumbv8m.main-none-eabihf
-    - name: Build examples
-      run: >
-        cargo build --features=board/imxrt1180evk-cm33 --target=thumbv8m.main-none-eabihf --release
-        --example=hal_led
+      - uses: actions/checkout@v4
+      - name: Install a stable toolchain for the MCU target
+        run: rustup toolchain install stable --no-self-update --profile minimal --target thumbv8m.main-none-eabihf
+      - name: Build examples
+        run: >
+          cargo build --features=board/imxrt1180evk-cm33 --target=thumbv8m.main-none-eabihf --release
+          --example=hal_led
 
   # Run unit, integration tests.
   #
@@ -128,17 +130,17 @@ jobs:
     strategy:
       matrix:
         chips:
-        - imxrt-ral/imxrt1011,imxrt1010
-        - imxrt-ral/imxrt1021,imxrt1020
-        - imxrt-ral/imxrt1062,imxrt1060
-        - imxrt-ral/imxrt1176_cm7,imxrt1170
+          - imxrt-ral/imxrt1011,imxrt1010
+          - imxrt-ral/imxrt1021,imxrt1020
+          - imxrt-ral/imxrt1062,imxrt1060
+          - imxrt-ral/imxrt1176_cm7,imxrt1170
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - name: Install a stable toolchain
-      run: rustup toolchain install stable --no-self-update --profile minimal
-    - name: Run unit, integration tests
-      run: cargo test --features=${{ matrix.chips }} --features=defmt --tests --package=imxrt-hal --package=imxrt-log
+      - uses: actions/checkout@v4
+      - name: Install a stable toolchain
+        run: rustup toolchain install stable --no-self-update --profile minimal
+      - name: Run unit, integration tests
+        run: cargo test --features=${{ matrix.chips }} --features=defmt --tests --package=imxrt-hal --package=imxrt-log
 
   # Make sure our unit tests can pass (some recent version of) miri.
   miri:
@@ -146,17 +148,17 @@ jobs:
     strategy:
       matrix:
         chips:
-        - imxrt-ral/imxrt1011,imxrt1010
-        - imxrt-ral/imxrt1021,imxrt1020
-        - imxrt-ral/imxrt1062,imxrt1060
-        - imxrt-ral/imxrt1176_cm7,imxrt1170
+          - imxrt-ral/imxrt1011,imxrt1010
+          - imxrt-ral/imxrt1021,imxrt1020
+          - imxrt-ral/imxrt1062,imxrt1060
+          - imxrt-ral/imxrt1176_cm7,imxrt1170
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - name: Install a nightly toolchain with miri
-      run: rustup toolchain install nightly --no-self-update --profile minimal --component miri
-    - name: Run unit, integration tests with miri
-      run: cargo +nightly miri test --features=${{ matrix.chips }} --tests --package=imxrt-hal --package=imxrt-log --config "profile.dev.opt-level = 0"
+      - uses: actions/checkout@v4
+      - name: Install a nightly toolchain with miri
+        run: rustup toolchain install nightly --no-self-update --profile minimal --component miri
+      - name: Run unit, integration tests with miri
+        run: cargo +nightly miri test --features=${{ matrix.chips }} --tests --package=imxrt-hal --package=imxrt-log --config "profile.dev.opt-level = 0"
 
   # Ensures that documentation builds, and that links are valid
   docs:
@@ -165,10 +167,10 @@ jobs:
     env:
       RUSTDOCFLAGS: -D warnings
     steps:
-    - uses: actions/checkout@v4
-    - name: Install a stable toolchain
-      run: rustup toolchain install stable --no-self-update --profile minimal
-    - name: Run documentation tests
-      run: cargo test --features=board/teensy4 --workspace --doc
-    - name: Check documentation, doclinks throughout workspace
-      run: cargo doc --workspace --no-deps --features=board/teensy4
+      - uses: actions/checkout@v4
+      - name: Install a stable toolchain
+        run: rustup toolchain install stable --no-self-update --profile minimal
+      - name: Run documentation tests
+        run: cargo test --features=board/teensy4 --workspace --doc
+      - name: Check documentation, doclinks throughout workspace
+        run: cargo doc --workspace --no-deps --features=board/teensy4
