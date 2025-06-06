@@ -81,6 +81,7 @@ mod app {
     use imxrt_hal::{self as hal};
 
     type SaiTx = hal::sai::Tx<1, 16, 2, hal::sai::PackingNone>;
+    type SaiRx = hal::sai::Rx<1, 16, 2, hal::sai::PackingNone>;
 
     //
     // End configurations.
@@ -140,13 +141,14 @@ mod app {
         let dma_a = dma[board::BOARD_DMA_A_INDEX].take().unwrap();
         let poller = board::logging::init(FRONTEND, BACKEND, console, dma_a, usbd);
 
-        let (Some(sai1_tx), Some(_sai1_rx)) =
+        let (Some(sai1_tx), Some(sai1_rx)) =
             sai1.split(&hal::sai::SaiConfig::i2s(hal::sai::bclk_div(8)))
         else {
             panic!("Unexpected return from sai split");
         };
 
         let mut sai1_tx: SaiTx = sai1_tx;
+        let mut sai1_rx: SaiRx = sai1_rx;
 
         let regs = sai1_tx.reg_dump();
         defmt::println!(
@@ -177,6 +179,7 @@ mod app {
             hal::sai::Interrupts::FIFO_WARNING | hal::sai::Interrupts::FIFO_REQUEST,
         );
         sai1_tx.set_enable(true);
+        sai1_rx.set_enable(true);
 
         (
             Shared { sai1_tx, poller },
