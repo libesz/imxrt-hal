@@ -449,6 +449,33 @@ impl<const N: u8, const WORD_SIZE: u8, const FRAME_SIZE: usize, PACKING: Packing
     pub fn fifo_position(&mut self, chan: usize) -> (u32, u32) {
         ral::read_reg!(ral::sai, self.sai, TFR[chan], WFP, RFP)
     }
+
+    /// Let the peripheral act as a DMA destination.
+    ///
+    /// After this call, the peripheral will signal to the DMA engine whenever
+    /// it has free space in its transfer buffer.
+    pub fn enable_dma_transmit(&mut self) {
+        ral::modify_reg!(ral::sai, self.sai, TCR1, TFW: 0); // No watermarks; affects DMA signaling
+        ral::modify_reg!(ral::sai, self.sai, TCSR, FRDE: 1);
+    }
+
+    /// Stop the peripheral from acting as a DMA destination.
+    ///
+    /// See the DMA chapter in the reference manual to understand when this
+    /// should be called in the DMA transfer lifecycle.
+    pub fn disable_dma_transmit(&mut self) {
+        while ral::read_reg!(ral::sai, self.sai, TCSR, FRDE == 1) {
+            ral::modify_reg!(ral::sai, self.sai, TCSR, FRDE: 0);
+        }
+    }
+
+    /// Produces a pointer to the transfer data register.
+    ///
+    /// You should use this pointer when coordinating a DMA transfer.
+    /// You're not expected to read from this pointer in software.
+    pub fn tdr(&self) -> *const ral::RWRegister<u32> {
+        core::ptr::addr_of!(self.sai.TDR[0])
+    }
 }
 
 impl<const N: u8, const FRAME_SIZE: usize> Tx<N, 32, FRAME_SIZE, PackingNone> {
@@ -558,6 +585,34 @@ impl<const N: u8, const WORD_SIZE: u8, const FRAME_SIZE: usize, PACKING: Packing
     pub fn fifo_position(&mut self, chan: usize) -> (u32, u32) {
         ral::read_reg!(ral::sai, self.sai, RFR[chan], WFP, RFP)
     }
+    
+    /// Let the peripheral act as a DMA source.
+    ///
+    /// After this call, the peripheral will signal to the DMA engine whenever
+    /// it has data available to read.
+    pub fn enable_dma_receive(&mut self) {
+        ral::modify_reg!(ral::sai, self.sai, RCR1, RFW: 0);
+        ral::modify_reg!(ral::sai, self.sai, RCSR, FRDE: 1);
+    }
+
+    /// Stop the peripheral from acting as a DMA source.
+    ///
+    /// See the DMA chapter in the reference manual to understand when this
+    /// should be called in the DMA transfer lifecycle.
+    pub fn disable_dma_receive(&mut self) {
+        while ral::read_reg!(ral::sai, self.sai, RCSR, FRDE == 1) {
+            ral::modify_reg!(ral::sai, self.sai, RCSR, FRDE: 0);
+        }
+    }
+
+    /// Produces a pointer to the receiver data register.
+    ///
+    /// You should use this pointer when coordinating a DMA transfer.
+    /// You're not expected to read from this pointer in software.
+    pub fn rdr(&self) -> *const ral::RORegister<u32> {
+        core::ptr::addr_of!(self.sai.RDR[0])
+    }
+
 }
 
 impl<const N: u8, const FRAME_SIZE: usize> Rx<N, 32, FRAME_SIZE, PackingNone> {
